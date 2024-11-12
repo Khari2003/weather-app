@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Text, StyleSheet, View, ActivityIndicator, ScrollView,Image  } from 'react-native';
+import { Text, StyleSheet, View, ActivityIndicator, ScrollView, Image, TouchableOpacity } from 'react-native';
 import axios from 'axios';
+import { useRouter } from 'expo-router';
 import Entypo from '@expo/vector-icons/Entypo';
 import { LinearGradient } from 'expo-linear-gradient';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Feather from '@expo/vector-icons/Feather';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import Drop from '../../assets/images/drop.svg'
+import Drop from 'D:/Weather-App/assets/images/drop.svg'
 
 const translateDescription = (description) => {
   const translations = {
@@ -38,14 +39,16 @@ const translateDescription = (description) => {
 };
 
 export default function WeatherDisplay() {
+  const router = useRouter();
   const [weatherData, setWeatherData] = useState(null); // Lưu trữ dữ liệu thời tiết
   const [loading, setLoading] = useState(true); // Trạng thái loading
   const [error, setError] = useState(null); // Lưu trữ lỗi nếu có
   const [aqi, setAqi] = useState(null); // Lưu trữ chỉ số AQI (Chỉ số chất lượng không khí)
 
+  const name = "Ho Chi Minh"
   // Dùng useEffect để lấy dữ liệu thời tiết từ API khi component được render
   useEffect(() => {
-    axios.get(`http://localhost:3000/api/search`)
+    axios.get(`http://localhost:3000/api/search?name=${name}`)
       .then(response => {
         console.log(response.data); // In dữ liệu nhận được từ API
         setWeatherData(response.data); // Cập nhật dữ liệu thời tiết
@@ -103,6 +106,28 @@ export default function WeatherDisplay() {
     }
   };
 
+  // Màu nền khối theo thời gian
+  const getBackgroundColor = () => {
+    const hour = new Date().getHours();
+
+    if (hour >= 6 && hour < 12) {
+      // Buổi sáng
+      return {backgroundColor:'#5597E1'};
+    } else if (hour >= 12 && hour < 15) {
+      // Buổi chiều
+      return {backgroundColor: '#4682B4'};
+    } else if(hour >= 17 && hour < 18){
+      // Hoàng hôn
+      return {backgroundColor: '#6A8FAB'};
+    }else if(hour >= 5 && hour < 6){
+      // Bình minh
+      return {backgroundColor: '#6A8FAB'};
+    } else {
+      // Tối
+      return {backgroundColor: '#3B4C72'};
+    }
+  }
+
   // Hàm trả về kiểu dáng của thanh AQI dựa trên chỉ số AQI
   const getAQIStyles = () => {
     if (aqi === 1) return { width: '20%', backgroundColor: 'green' };
@@ -143,7 +168,9 @@ export default function WeatherDisplay() {
     >
     <ScrollView style={styles.container}>
         <View style={styles.menuTitle}>
-          <Entypo name="menu" size={50} color="white" />
+          <TouchableOpacity onPress={() => router.push('./likeCity/likeCity')}>
+            <Entypo name="menu" size={50} color="white" />
+          </TouchableOpacity>
           <Text style={styles.cityName}>{weatherData.local_names.vi}</Text> {/* Hiển thị tên thành phố */}
         </View>
         <View>
@@ -154,7 +181,7 @@ export default function WeatherDisplay() {
           </Text> {/* Nhiệt độ trong ngày và cảm giác như thế nào */}
         </View>
 
-      <View style={styles.hourlyContainer}>
+      <View style={[styles.hourlyContainer, getBackgroundColor()]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {weatherData.hourly.slice(0, 24).map((item, index) => (
             <View key={index} style={styles.hourBlock}>
@@ -170,7 +197,7 @@ export default function WeatherDisplay() {
         </ScrollView>
       </View>
 
-      <View style={styles.dailyContainer}>
+      <View style={[styles.dailyContainer, getBackgroundColor()]}>
         <View style={styles.column}>
           {weatherData.daily.slice(0, 7).map((item, index) => (
             <Text key={index} style={styles.dailyRow}>
@@ -191,7 +218,7 @@ export default function WeatherDisplay() {
         </View>
       </View>
 
-      <View style={styles.aqiContainer}>
+      <View style={[styles.aqiContainer, getBackgroundColor()]}>
           <Text style={styles.aqiText}>AQI</Text>
           <Text style={styles.aqiDescription}>{getAQIDescription()}</Text> {/* Mô tả AQI */}
           <View style={styles.aqiBar}>
@@ -200,44 +227,44 @@ export default function WeatherDisplay() {
       </View>
 
       <View style={styles.additionalInfo}>
-          <View style={styles.infoBlock}>
-            <View>
-              <Feather name="sun" size={24} color="black" />
+          <View style={[styles.infoBlock, getBackgroundColor()]}>
+            <View style={styles.blockInfo}>
+              <Feather name="sun" size={24} color="white" />
               <Text style={styles.infoTitle}>Chỉ số UV</Text>
             </View>
             <Text style={styles.infoValue}>{getUVIDescription()}</Text> {/* Mô tả chỉ số UV */}
           </View>
-          <View style={styles.infoBlock}>
-            <View>
-              <Image source={Drop} style={{ width: 20, height: 20 }} />
+          <View style={[styles.infoBlock, getBackgroundColor()]}>
+            <View style={styles.blockInfo}>
+              <Image source={Drop} style={{ height: 24, width: 26, resizeMode: 'contain' }} />
               <Text style={styles.infoTitle}>Độ ẩm</Text>
             </View>
             <Text style={styles.infoValue}>{humidity}%</Text> {/* Độ ẩm */}
           </View>
-          <View style={styles.infoBlock}>
-            <View>
-              <Feather name="wind" size={24} color="black" />
+          <View style={[styles.infoBlock, getBackgroundColor()]}>
+            <View style={styles.blockInfo}>
+              <Feather name="wind" size={24} color="white" />
               <Text style={styles.infoTitle}>Gió</Text>
             </View>
             <Text style={styles.infoValue}>{wind_speed} km/h</Text> {/* Tốc độ gió */}
           </View>
-          <View style={styles.infoBlock}>
-            <View>
-              <MaterialIcons name="dew-point" size={24} color="black" />
+          <View style={[styles.infoBlock, getBackgroundColor()]}>
+            <View style={styles.blockInfo}>
+              <MaterialIcons name="dew-point" size={24} color="white" />
               <Text style={styles.infoTitle}>Điểm sương</Text>
             </View>
             <Text style={styles.infoValue}>{dew_point}°</Text> {/* Điểm sương */}
           </View>
-          <View style={styles.infoBlock}>
-            <View>
-              <MaterialCommunityIcons name="car-brake-low-pressure" size={24} color="black" />  
+          <View style={[styles.infoBlock, getBackgroundColor()]}>
+            <View style={styles.blockInfo}>
+              <MaterialCommunityIcons name="car-brake-low-pressure" size={24} color="white" />  
               <Text style={styles.infoTitle}>Áp suất</Text>
             </View>
             <Text style={styles.infoValue}>{pressure} mb</Text> {/* Áp suất không khí */}
           </View>
-          <View style={styles.infoBlock}>
-            <View>
-              <MaterialIcons name="visibility" size={24} color="black" />
+          <View style={[styles.infoBlock, getBackgroundColor()]}>
+            <View style={styles.blockInfo}>
+              <MaterialIcons name="visibility" size={24} color="white" />
               <Text style={styles.infoTitle}>Hiển thị</Text>
             </View>
             <Text style={styles.infoValue}>{visibility/1000} km</Text> {/* Tầm nhìn */}
@@ -268,7 +295,7 @@ const styles = StyleSheet.create({
     height:200,
     padding: 16,
     borderRadius: 8,
-    backgroundColor: '#323A69',
+    // backgroundColor: '#323A69',
   },
   hourBlock: { alignItems: 'center', marginHorizontal:10, justifyContent: 'space-between' },
   hourText: { color: 'white', fontSize: 16, fontWeight:'medium' },
@@ -285,7 +312,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', 
     marginVertical: 16,
     borderRadius: 8,
-    backgroundColor: '#323A69',
     padding: 16,
   },
   column: { 
@@ -321,7 +347,7 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
 
-  aqiContainer: { backgroundColor: '#323A69', padding: 12, borderRadius: 8, marginBottom: 16, alignItems:'center' },
+  aqiContainer: { padding: 12, borderRadius: 8, marginBottom: 16, alignItems:'center' },
   aqiText: { color: 'white', fontSize: 16, textAlign: 'center' },
   aqiDescription: { color: 'white', textAlign: 'center', fontSize: 16, fontWeight: 'bold' },
   aqiBar: {
@@ -338,9 +364,10 @@ const styles = StyleSheet.create({
       width:'60%'
   },
 
+  blockInfo:{ flexDirection: 'row', alignItems: 'center'}, 
   additionalInfo: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  infoBlock: { width: '45%', backgroundColor: '#323A69', padding: 10, borderRadius: 8, marginVertical: 8 },
-  infoTitle: { color: 'white', fontSize: 12 },
+  infoBlock: { width: '45%', padding: 10, borderRadius: 8, marginVertical: 8 },
+  infoTitle: { color: 'white', fontSize: 12, marginLeft: 10, marginRight: 10 },
   infoValue: { color: 'white', fontSize: 16 },
 });
 
