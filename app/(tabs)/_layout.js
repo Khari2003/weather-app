@@ -9,6 +9,7 @@ import Feather from '@expo/vector-icons/Feather';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Drop from 'D:/Weather-App/assets/images/drop.svg'
+import AntDesign from '@expo/vector-icons/AntDesign';
 
 const translateDescription = (description) => {
   const translations = {
@@ -40,26 +41,119 @@ const translateDescription = (description) => {
 
 export default function WeatherDisplay() {
   const router = useRouter();
-  const [weatherData, setWeatherData] = useState(null); // Lưu trữ dữ liệu thời tiết
-  const [loading, setLoading] = useState(true); // Trạng thái loading
-  const [error, setError] = useState(null); // Lưu trữ lỗi nếu có
-  const [aqi, setAqi] = useState(null); // Lưu trữ chỉ số AQI (Chỉ số chất lượng không khí)
+  const [reloadCount, setReloadCount] = useState(0); // Đếm số lần reload
+  const name = new URLSearchParams(window.location.search).get("city") || "";
+  
+  const [weatherData, setWeatherData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [aqi, setAqi] = useState(null);
+  const [nameCity, setNameCity] = useState("");
+  const [favoriteCities, setFavoriteCities] = useState([]);
+  const [isLiked, setIsLiked] = useState(false);
+  const [country, setCountry] = useState("");
 
-  const name = "Ho Chi Minh"
-  // Dùng useEffect để lấy dữ liệu thời tiết từ API khi component được render
+  // useEffect để lấy dữ liệu thời tiết từ API khi component render
   useEffect(() => {
+    if (name === "" && reloadCount < 1) {
+      setReloadCount(prevCount => prevCount + 1); // Tăng biến đếm reload
+      return;
+    }
+
     axios.get(`http://localhost:3000/api/search?name=${name}`)
       .then(response => {
-        console.log(response.data); // In dữ liệu nhận được từ API
-        setWeatherData(response.data); // Cập nhật dữ liệu thời tiết
-        setAqi(response.data.aqi); // Cập nhật chỉ số AQI
-        setLoading(false); // Đặt trạng thái loading là false
+        if (response.data.length > 0) {
+          const cityData = response.data[0];
+          const lat = cityData.lat;
+          const lon = cityData.lon;
+          const cityNameVi = cityData.local_names?.vi || cityData.name;
+          setCountry(cityData.country);
+
+          // Fetch weather data
+          axios.post(`http://localhost:3000/api/weather`, { lat, lon })
+            .then(res => {
+              setWeatherData(res.data);
+              setAqi(res.data.aqi);
+              setNameCity(cityNameVi);
+              setLoading(false);
+            })
+            .catch(error => {
+              console.error("Error fetching weather data:", error);
+              setError(error);
+              setLoading(false);
+            });
+        } else {
+          console.error("City not found");
+          setError("City not found");
+          setLoading(false);
+        }
       })
       .catch(error => {
-        setError(error); // Cập nhật lỗi nếu có
-        setLoading(false); // Đặt trạng thái loading là false
+        setError(error);
+        setLoading(false);
       });
-  }, []); // Chạy effect này chỉ 1 lần khi component mount
+  }, [name, reloadCount]); 
+
+  useEffect(() => {
+    const fetchFavoriteCities = async () => {
+      try {
+        const response = await axios.get('http://localhost:3000/api/favorites'); 
+        setFavoriteCities(response.data);
+        for (let i = 0; i < response.data.length; i++){
+          if(response.data[i].name === nameCity && response.data[i].country === country){
+            setIsLiked(true);
+            break;
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching favorite cities:", error);
+      }
+    };
+
+    fetchFavoriteCities();
+  }, [nameCity, country, isLiked]);
+
+  // Hàm gọi API để thêm thành phố vào danh sách yêu thích
+  const handlePress = async () => {
+    if (isLiked) {
+      try {
+          const res = await axios.delete('http://localhost:3000/api/favorites/delete', {
+              data: {
+                  name: nameCity,
+                  country,
+                  lat: weatherData.lat,
+                  lon: weatherData.lon
+              }
+          });
+          if (res.status === 200) {
+              setIsLiked(false); // Đổi icon thành trái tim trống
+              setFavoriteCities(favoriteCities.filter(city => city.name !== nameCity)); // Loại bỏ khỏi danh sách yêu thích
+          } else {
+              console.error("Failed to remove city from favorites");
+          }
+      } catch (error) {
+          console.error("Error removing city from favorites:", error);
+      }
+    } else {
+        try {
+            const response = await axios.post('http://localhost:3000/api/save', {
+                name: nameCity,
+                country,
+                lat: weatherData.lat,
+                lon: weatherData.lon
+            });
+
+            if (response.status === 201) {
+                setIsLiked(true); // Đổi icon thành trái tim đầy
+                setFavoriteCities([...favoriteCities, response.data.city]); // Cập nhật danh sách yêu thích
+            } else {
+                console.error("Failed to add city to favorites");
+            }
+        } catch (error) {
+            console.error("Error adding city to favorites:", error);
+        }
+      }
+  };
 
   // Hiển thị khi dữ liệu đang tải
   if (loading) {
@@ -118,10 +212,10 @@ export default function WeatherDisplay() {
       return {backgroundColor: '#4682B4'};
     } else if(hour >= 17 && hour < 18){
       // Hoàng hôn
-      return {backgroundColor: '#6A8FAB'};
+      return {backgroundColor: '#FF9F45'};
     }else if(hour >= 5 && hour < 6){
       // Bình minh
-      return {backgroundColor: '#6A8FAB'};
+      return {backgroundColor: '#FF9F45'};
     } else {
       // Tối
       return {backgroundColor: '#3B4C72'};
@@ -149,8 +243,8 @@ export default function WeatherDisplay() {
   };
 
   // Lấy dữ liệu thời tiết hiện tại
-  const { temp, weather, humidity, wind_speed, dew_point, pressure, uvi, visibility, feels_like } = weatherData.current;
-  
+  const { temp, weather, humidity, wind_speed, dew_point, pressure, uvi, visibility } = weatherData.current;
+
   // Hàm trả về mô tả chỉ số UV
   const getUVIDescription = () => {
     if (uvi <= 2) return "Thấp";
@@ -168,17 +262,28 @@ export default function WeatherDisplay() {
     >
     <ScrollView style={styles.container}>
         <View style={styles.menuTitle}>
-          <TouchableOpacity onPress={() => router.push('./likeCity/likeCity')}>
+          <TouchableOpacity onPress={() => router.push('/likeCity')}>
             <Entypo name="menu" size={50} color="white" />
           </TouchableOpacity>
-          <Text style={styles.cityName}>{weatherData.local_names.vi}</Text> {/* Hiển thị tên thành phố */}
+          <Text style={styles.cityName}>{nameCity}</Text> {/* Hiển thị tên thành phố */}
+          <TouchableOpacity style={{marginLeft: 20}} onPress={handlePress}>
+            <AntDesign 
+              name={isLiked ? "heart" : "hearto"}
+              size={20} color='white'
+            />
+          </TouchableOpacity>
         </View>
-        <View>
-          <Text style={styles.temperature}>{Math.round(temp)}°</Text> {/* Hiển thị nhiệt độ hiện tại */}
-          <Text style={styles.description}>{translateDescription(weather[0].description)}</Text> {/* Mô tả thời tiết */}
-          <Text style={styles.tempRange}>
-            {Math.round(weatherData.daily[0].temp.max)}° / {Math.round(weatherData.daily[0].temp.min)}° Cảm giác như {Math.round(feelsLikeTemp)}°
-          </Text> {/* Nhiệt độ trong ngày và cảm giác như thế nào */}
+        <View style={{flexDirection:'row', justifyContent:'space-between'}}>
+          <View>
+            <Text style={styles.temperature}>{Math.round(temp)}°</Text> {/* Hiển thị nhiệt độ hiện tại */}
+            <Text style={styles.description}>{translateDescription(weather[0].description)}</Text> {/* Mô tả thời tiết */}
+            <Text style={styles.tempRange}>
+              {Math.round(weatherData.daily[0].temp.max)}° / {Math.round(weatherData.daily[0].temp.min)}° Cảm giác như {Math.round(feelsLikeTemp)}°
+            </Text> {/* Nhiệt độ trong ngày và cảm giác như thế nào */}
+          </View>
+          <View style={{right:30}}>
+            <Image source={{uri: `https://openweathermap.org/img/wn/${weather[0].icon}@2x.png`}} style={{width: 150, height: 150}}></Image>
+          </View>
         </View>
 
       <View style={[styles.hourlyContainer, getBackgroundColor()]}>
@@ -190,7 +295,7 @@ export default function WeatherDisplay() {
               <Text style={styles.hourTemp}>{Math.round(item.temp)}°</Text> {/* Nhiệt độ theo giờ */}
               <View style={{flexDirection:'row', alignItems:'center', width:'100%', justifyContent:'space-around'}}>
                 <FontAwesome6 name="droplet" size={12} color="white" />
-                <Text style={styles.hourPop}>{item.pop}%</Text> {/* Xác suất mưa */}
+                <Text style={styles.hourPop}>{Math.round(item.pop)}%</Text> {/* Xác suất mưa */}
               </View>
             </View>
           ))}
@@ -202,10 +307,12 @@ export default function WeatherDisplay() {
           {weatherData.daily.slice(0, 7).map((item, index) => (
             <Text key={index} style={styles.dailyRow}>
               <View style={styles.dayText}>
-                {['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'][new Date(item.dt * 1000).getDay()]}
+                <Text>{['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'][new Date(item.dt * 1000).getDay()]}</Text>
               </View>
               <View style={styles.dayPop}>
-                {Math.round(item.pop)}% {/* Xác suất mưa trong tuần */}
+                <Text>
+                  {Math.round(item.pop)}% {/* Xác suất mưa trong tuần */}
+                </Text>
               </View>
               <Text style={styles.iconClound}>
                 <Image source={{uri: `https://openweathermap.org/img/wn/${item.weather[0].icon}@2x.png`}} style={styles.weatherIcon}></Image>
@@ -222,8 +329,8 @@ export default function WeatherDisplay() {
           <Text style={styles.aqiText}>AQI</Text>
           <Text style={styles.aqiDescription}>{getAQIDescription()}</Text> {/* Mô tả AQI */}
           <View style={styles.aqiBar}>
-                <View style={[styles.aqiLevel, getAQIStyles()]} />
-            </View>
+            <View style={[styles.aqiLevel, getAQIStyles()]} />
+          </View>
       </View>
 
       <View style={styles.additionalInfo}>
