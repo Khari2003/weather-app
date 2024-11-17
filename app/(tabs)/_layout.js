@@ -153,16 +153,47 @@ export default function WeatherDisplay() {
     fetchFavoriteCities();
   }, [nameCity, country, isLiked]);
 
-  useEffect(() => {
-    // Tạo khoảng thời gian lặp để hiển thị thông báo
-    const intervalId = setInterval(() => {
-      const message = `${nameCity}, ${Math.round(weatherData.current.temp)}°C, Chất lượng không khí: ${getAQIDescription()}`;
-      showWebNotification(message);
-    }, 5000);
+  // useEffect(() => {
+  //   // Tạo khoảng thời gian lặp để hiển thị thông báo
+  //   const intervalId = setInterval(() => {
+  //     const message = `${nameCity}, ${Math.round(weatherData.current.temp)}°C, Chất lượng không khí: ${getAQIDescription()}`;
+  //     showWebNotification(message);
+  //   }, 5000);
 
-    // Dọn dẹp khi component bị huỷ
-    return () => clearInterval(intervalId);
-  }, [weatherData]);
+  //   // Dọn dẹp khi component bị huỷ
+  //   return () => clearInterval(intervalId);
+  // }, [weatherData]);
+
+  useEffect(() => {
+    const showNotificationAtTime = () => {
+      const now = new Date();
+      const targetTime = new Date();
+
+      // Đặt thời gian thông báo 
+      targetTime.setHours(7, 0, 0, 0);
+
+      // Nếu thời gian hiện tại đã qua 7:00, đặt mốc thời gian vào ngày hôm sau
+      if (now > targetTime) {
+        targetTime.setDate(targetTime.getDate() + 1);
+      }
+
+      const delay = targetTime - now;
+
+      // Lên lịch hiển thị thông báo
+      const timeoutId = setTimeout(() => {
+        const message = `${nameCity}, ${Math.round(weatherData.current.temp)}°C, Chất lượng không khí: ${getAQIDescription()}`;
+        showWebNotification(message);
+
+        // Lặp lại mỗi ngày
+        showNotificationAtTime();
+      }, delay);
+
+      // Dọn dẹp nếu component bị huỷ
+      return () => clearTimeout(timeoutId);
+    };
+
+    showNotificationAtTime();
+  }, [nameCity, weatherData]);
 
   // Hàm gọi API để thêm thành phố vào danh sách yêu thích
   const handlePress = async () => {
