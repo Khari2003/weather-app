@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Text, StyleSheet, View, ActivityIndicator, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { Text, StyleSheet, View, ActivityIndicator, ScrollView, Image, TouchableOpacity, Modal } from 'react-native';
 import axios from 'axios';
 import { useRouter } from 'expo-router';
 import Entypo from '@expo/vector-icons/Entypo';
@@ -52,6 +52,35 @@ export default function WeatherDisplay() {
   const [favoriteCities, setFavoriteCities] = useState([]);
   const [isLiked, setIsLiked] = useState(false);
   const [country, setCountry] = useState("");
+  // State thông báo thời tiết xấu
+  const [notification, setNotification] = useState('');
+
+  // Hàm kiểm tra và hiển thị thông báo ngoài trình duyệt
+  const requestNotificationPermission = async () => {
+    if (Notification.permission === 'granted') {
+      return true;
+    } else if (Notification.permission !== 'denied') {
+      const permission = await Notification.requestPermission();
+      return permission === 'granted';
+    }
+    return false;
+  };
+  
+  const showWebNotification = async (title, message) => {
+    const isPermissionGranted = await requestNotificationPermission();
+    if (isPermissionGranted) {
+      new Notification(title, {
+        body: message,
+        icon: `https://openweathermap.org/img/wn/${weather[0].icon}@2x.png`, // Thay thế bằng đường dẫn tới biểu tượng của bạn
+      });
+    }
+  };
+
+  // Hàm hiển thị thông báo với nội dung message
+  const showNotification = (message) => {
+    setNotification(message); // Cập nhật thông báo
+    setTimeout(() => setNotification(''), 5000); // Ẩn thông báo sau 5 giây
+  };
 
   // useEffect để lấy dữ liệu thời tiết từ API khi component render
   useEffect(() => {
@@ -76,6 +105,12 @@ export default function WeatherDisplay() {
               setAqi(res.data.aqi);
               setNameCity(cityNameVi);
               setLoading(false);
+
+              if(res.data.alerts){
+                showNotification(res.data.alerts)
+              } else {
+                showNotification('')
+              }
             })
             .catch(error => {
               console.error("Error fetching weather data:", error);
@@ -91,8 +126,13 @@ export default function WeatherDisplay() {
       .catch(error => {
         setError(error);
         setLoading(false);
+        // Hiển thị thông báo lỗi
+        showWebNotification('Lỗi: Không thể tải thành phố.');
+        showNotification('Lỗi: Không thể thành phố.');
       });
   }, [name, reloadCount]); 
+
+  console.log(notification)
 
   useEffect(() => {
     const fetchFavoriteCities = async () => {
@@ -112,6 +152,17 @@ export default function WeatherDisplay() {
 
     fetchFavoriteCities();
   }, [nameCity, country, isLiked]);
+
+  useEffect(() => {
+    // Tạo khoảng thời gian lặp để hiển thị thông báo
+    const intervalId = setInterval(() => {
+      const message = `${nameCity}, ${Math.round(weatherData.current.temp)}°C, Chất lượng không khí: ${getAQIDescription()}`;
+      showWebNotification(message);
+    }, 5000);
+
+    // Dọn dẹp khi component bị huỷ
+    return () => clearInterval(intervalId);
+  }, [weatherData]);
 
   // Hàm gọi API để thêm thành phố vào danh sách yêu thích
   const handlePress = async () => {
@@ -245,6 +296,8 @@ export default function WeatherDisplay() {
   // Lấy dữ liệu thời tiết hiện tại
   const { temp, weather, humidity, wind_speed, dew_point, pressure, uvi, visibility } = weatherData.current;
 
+  console.log(weatherData)
+
   // Hàm trả về mô tả chỉ số UV
   const getUVIDescription = () => {
     if (uvi <= 2) return "Thấp";
@@ -377,6 +430,25 @@ export default function WeatherDisplay() {
             <Text style={styles.infoValue}>{visibility/1000} km</Text> {/* Tầm nhìn */}
           </View>
       </View>
+      {notification !== '' && (
+        <Modal
+          transparent={true} // Cho phép hiển thị nội dung modal trên nền màn hình chính
+          visible={notification !== ''} // Điều khiển hiển thị modal
+          animationType="fade" // Thêm hiệu ứng fade khi mở modal
+        >
+          <View style={styles.notificationContainer}>
+            <View style={[styles.notificationBox, getBackgroundColor()]}>
+              <View>
+                <Text style={styles.notificationText}>{notification[0].event}!!!</Text>
+                <View style={{marginTop: 30}}>
+                  <Text style={styles.notificationSubText}>Giờ bắt đầu: {new Date(notification[0].start * 1000).getHours()}:{new Date(notification[0].start * 1000).getMinutes().toString().padStart(2, '0')}</Text>
+                  <Text style={styles.notificationSubText}>Giờ kết thúc: {new Date(notification[0].end * 1000).getHours()}:{new Date(notification[0].end * 1000).getMinutes().toString().padStart(2, '0')}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </ScrollView>
     </LinearGradient>
   );
@@ -476,6 +548,38 @@ const styles = StyleSheet.create({
   infoBlock: { width: '45%', padding: 10, borderRadius: 8, marginVertical: 8 },
   infoTitle: { color: 'white', fontSize: 12, marginLeft: 10, marginRight: 10 },
   infoValue: { color: 'white', fontSize: 16 },
+  notificationContainer: {
+    flex: 1, // Chiếm toàn bộ màn hình
+    justifyContent: 'center', // Căn giữa theo trục dọc
+    alignItems: 'center', // Căn giữa theo trục ngang
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Màu nền mờ (50%)
+  },
+  notificationBox: {
+    backgroundColor: '#fff', // Nền trắng cho hộp thông báo
+    paddingHorizontal: 20, // Khoảng cách nội dung với viền
+    borderRadius: 10, // Bo tròn các góc
+    shadowColor: '#000', // Màu bóng
+    shadowOffset: { width: 0, height: 2 }, // Độ lệch của bóng
+    shadowOpacity: 0.3, // Độ trong suốt của bóng
+    shadowRadius: 4, // Độ lớn của bóng
+    elevation: 5, // Độ nổi trên Android
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  notificationText: {
+    fontSize: 25, // Kích thước chữ
+    textAlign: 'left', // Căn giữa chữ
+    fontWeight: 'bold', // Chữ đậm
+    color: 'red',
+    marginTop: 30
+  },
+  notificationSubText:{
+    fontSize: 16, // Kích thước chữ
+    textAlign: 'left', // Căn giữa chữ
+    fontWeight: 'bold', // Chữ đậm
+    color: '#f2f2f1',
+    marginVertical:10
+  }
 });
 
 
